@@ -225,9 +225,9 @@ function parseBotMessages(messages) {
     if (!text.includes("new battlecard request")) continue;
     if (msg.reply_count && msg.reply_count > 0) continue;
 
-    const companyMatch = text.match(/Company Name\?([^\n]+)/);
-    const websiteMatch = text.match(/Company Website\?([^\n]+)/);
-    const linkedinMatch = text.match(/Person's LinkedIn URL\?([^\n]+)/);
+    const companyMatch = text.match(/Company Name\?\*?\s*\n?\s*([^\n]+)/);
+    const websiteMatch = text.match(/Company Website\?\*?\s*\n?\s*([^\n]+)/);
+    const linkedinMatch = text.match(/Person's LinkedIn URL\?\*?\s*\n?\s*([^\n]+)/);
 
     if (companyMatch && websiteMatch && linkedinMatch) {
       const clean = (s) => s.trim().replace(/^[<*]+|[>*]+$/g, "").replace(/\|.*$/, "").trim();
