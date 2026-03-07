@@ -264,7 +264,7 @@ export default function Queue() {
 
     try {
       const listRes = await fetch(
-        "https://slack.com/api/conversations.list?types=private_channel,public_channel&limit=200",
+        "/api/channels",
         { headers: { Authorization: `Bearer ${token.trim()}` } }
       );
       const listData = await listRes.json();
@@ -274,7 +274,7 @@ export default function Queue() {
       if (!channel) throw new Error(`Channel #${CHANNEL_NAME} not found. Make sure the app has been invited to it.`);
 
       const histRes = await fetch(
-        `https://slack.com/api/conversations.history?channel=${channel.id}&limit=100`,
+        `/api/history?channel=${channel.id}`,
         { headers: { Authorization: `Bearer ${token.trim()}` } }
       );
       const histData = await histRes.json();
