@@ -230,11 +230,13 @@ function parseBotMessages(messages) {
     const linkedinMatch = text.match(/Person's LinkedIn URL\?([^\n]+)/);
 
     if (companyMatch && websiteMatch && linkedinMatch) {
+      const clean = (s) => s.trim().replace(/^[<*]+|[>*]+$/g, "").replace(/\|.*$/, "").trim();
+      const ensureUrl = (s) => (s && !/^https?:\/\//i.test(s) ? `https://${s}` : s);
       leads.push({
         id: msg.ts,
-        company: companyMatch[1].trim(),
-        website: websiteMatch[1].trim(),
-        linkedin: linkedinMatch[1].trim(),
+        company: clean(companyMatch[1]),
+        website: ensureUrl(clean(websiteMatch[1])),
+        linkedin: ensureUrl(clean(linkedinMatch[1])),
         ts: new Date(parseFloat(msg.ts) * 1000).toLocaleDateString("en-CA", {
           month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
         }),
