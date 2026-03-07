@@ -247,7 +247,7 @@ function parseBotMessages(messages) {
 }
 
 function buildCoworkPrompt(lead) {
-  return `Company Name? ${lead.company}\nCompany Website? ${lead.website}\nPerson's LinkedIn URL? ${lead.linkedin}`;
+  return `${lead.company}\n${lead.website}\n${lead.linkedin}`;
 }
 
 export default function Queue() {
