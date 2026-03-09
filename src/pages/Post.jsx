@@ -193,23 +193,54 @@ const STYLES = `
   .field-value a { color: #4ADE80; text-decoration: none; opacity: 0.85; transition: opacity 0.15s; }
   .field-value a:hover { opacity: 1; }
 
-  .url-input {
-    flex: 1;
+  .bulk-section {
+    background: #161b27;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .bulk-textarea {
+    width: 100%;
     background: #0F1117;
     border: 1px solid #1e293b;
     border-radius: 6px;
-    padding: 7px 10px;
+    padding: 10px 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     color: #e2e8f0;
     outline: none;
+    resize: vertical;
+    min-height: 120px;
     transition: border-color 0.15s;
-    width: 100%;
+    line-height: 1.6;
   }
 
-  .url-input:focus { border-color: #4ADE80; }
-  .url-input::placeholder { color: #334155; }
-  .url-input.filled { border-color: #166534; }
+  .bulk-textarea:focus { border-color: #4ADE80; }
+  .bulk-textarea::placeholder { color: #334155; }
+
+  .bulk-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #475569;
+    margin-top: 8px;
+  }
+
+  .mapped-url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #4ADE80;
+    word-break: break-all;
+    opacity: 0.85;
+  }
+
+  .no-url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #334155;
+    font-style: italic;
+  }
 
   .divider { height: 1px; background: #1e293b; margin: 24px 0; }
 
@@ -272,7 +303,7 @@ function parseBotMessages(messages) {
 export default function Post() {
   const [token, setToken] = useState(() => localStorage.getItem("kin_slack_token") || "");
   const [leads, setLeads] = useState([]);
-  const [urls, setUrls] = useState({});
+  const [bulkText, setBulkText] = useState("");
   const [channelId, setChannelId] = useState(null);
   const [ericUserId, setEricUserId] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -280,13 +311,24 @@ export default function Post() {
   const [errorMsg, setErrorMsg] = useState("");
   const [postResults, setPostResults] = useState([]);
 
+  // Parse bulk text into ordered URL list, mapped to leads by position
+  const parsedUrls = bulkText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const urlMap = {};
+  leads.forEach((lead, i) => {
+    if (parsedUrls[i]) urlMap[lead.id] = parsedUrls[i];
+  });
+
   const fetchLeads = useCallback(async () => {
     if (!token.trim()) return;
     localStorage.setItem("kin_slack_token", token.trim());
     setStatus("loading");
     setErrorMsg("");
     setLeads([]);
-    setUrls({});
+    setBulkText("");
     setPostResults([]);
     setPostStatus("idle");
 
@@ -327,14 +369,10 @@ export default function Post() {
     }
   }, [token]);
 
-  const setUrl = (leadId, url) => {
-    setUrls((prev) => ({ ...prev, [leadId]: url }));
-  };
-
-  const filledCount = leads.filter((l) => urls[l.id]?.trim()).length;
+  const filledCount = leads.filter((l) => urlMap[l.id]).length;
 
   const postAll = useCallback(async () => {
-    const toPost = leads.filter((l) => urls[l.id]?.trim());
+    const toPost = leads.filter((l) => urlMap[l.id]);
     if (toPost.length === 0) return;
 
     setPostStatus("posting");
@@ -342,7 +380,7 @@ export default function Post() {
     const results = [];
 
     for (const lead of toPost) {
-      const url = urls[lead.id].trim();
+      const url = urlMap[lead.id];
       const mention = ericUserId ? `<@${ericUserId}>` : `@${ERIC_DISPLAY}`;
       const text = `${mention} ${url}`;
 
@@ -365,7 +403,7 @@ export default function Post() {
 
     setPostResults(results);
     setPostStatus("done");
-  }, [leads, urls, token, channelId, ericUserId]);
+  }, [leads, urlMap, token, channelId, ericUserId]);
 
   const allSucceeded = postResults.length > 0 && postResults.every((r) => r.ok);
 
@@ -421,8 +459,25 @@ export default function Post() {
 
       {leads.length > 0 && (
         <>
+          <div className="bulk-section">
+            <div className="token-label">Paste URLs (one per line, in order)</div>
+            <textarea
+              className="bulk-textarea"
+              placeholder={`Line 1 → ${leads[0]?.company || "first lead"}\nLine 2 → ${leads[1]?.company || "second lead"}\nLine 3 → ...`}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              disabled={postStatus === "posting"}
+            />
+            <div className="bulk-hint">
+              {parsedUrls.length} URL{parsedUrls.length !== 1 ? "s" : ""} pasted
+              {parsedUrls.length > leads.length && ` (only ${leads.length} leads — extra URLs will be ignored)`}
+            </div>
+          </div>
+
+          <div className="token-label" style={{ marginBottom: 12 }}>Mapping Preview</div>
           <div className="lead-list">
             {leads.map((lead, i) => {
+              const url = urlMap[lead.id];
               const posted = postResults.find((r) => r.company === lead.company);
               return (
                 <div className={`lead-card${posted?.ok ? " posted" : ""}`} key={lead.id}>
@@ -436,7 +491,7 @@ export default function Post() {
                     )}
                     {posted && !posted.ok && (
                       <span style={{ color: "#f87171", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", marginLeft: "auto" }}>
-                        Failed
+                        Failed: {posted.error}
                       </span>
                     )}
                   </div>
@@ -448,18 +503,13 @@ export default function Post() {
                       </span>
                     </div>
                     <div className="lead-field">
-                      <span className="field-label">Received</span>
-                      <span className="field-value">{lead.ts}</span>
+                      <span className="field-label">URL</span>
+                      {url
+                        ? <span className="mapped-url">{url}</span>
+                        : <span className="no-url">No URL (line {i + 1})</span>
+                      }
                     </div>
                   </div>
-                  <input
-                    className={`url-input${urls[lead.id]?.trim() ? " filled" : ""}`}
-                    type="url"
-                    placeholder="Paste battle card URL..."
-                    value={urls[lead.id] || ""}
-                    onChange={(e) => setUrl(lead.id, e.target.value)}
-                    disabled={posted?.ok}
-                  />
                 </div>
               );
             })}
