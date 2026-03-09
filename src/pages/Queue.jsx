@@ -243,6 +243,7 @@ function parseBotMessages(messages) {
       });
     }
   }
+  leads.sort((a, b) => parseFloat(a.id) - parseFloat(b.id));
   return leads;
 }
 

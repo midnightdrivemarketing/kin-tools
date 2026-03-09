@@ -297,7 +297,17 @@ function parseBotMessages(messages) {
       });
     }
   }
+  leads.sort((a, b) => parseFloat(a.id) - parseFloat(b.id));
   return leads;
+}
+
+function parseSlackThreadUrl(url) {
+  const match = url.match(/archives\/([A-Z0-9]+)\/p(\d+)/);
+  if (!match) return null;
+  const channel = match[1];
+  const raw = match[2];
+  const thread_ts = raw.slice(0, -6) + "." + raw.slice(-6);
+  return { channel, thread_ts };
 }
 
 export default function Post() {
@@ -310,6 +320,12 @@ export default function Post() {
   const [postStatus, setPostStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [postResults, setPostResults] = useState([]);
+
+  // Quick post state
+  const [quickThreadUrl, setQuickThreadUrl] = useState("");
+  const [quickCardUrl, setQuickCardUrl] = useState("");
+  const [quickStatus, setQuickStatus] = useState("idle");
+  const [quickMsg, setQuickMsg] = useState("");
 
   // Parse bulk text into ordered URL list, mapped to leads by position
   const parsedUrls = bulkText
@@ -368,6 +384,66 @@ export default function Post() {
       setStatus("error");
     }
   }, [token]);
+
+  const quickPost = useCallback(async () => {
+    if (!token.trim() || !quickThreadUrl.trim() || !quickCardUrl.trim()) return;
+    localStorage.setItem("kin_slack_token", token.trim());
+
+    const parsed = parseSlackThreadUrl(quickThreadUrl.trim());
+    if (!parsed) {
+      setQuickStatus("error");
+      setQuickMsg("Invalid Slack thread URL. Right-click a message → Copy link.");
+      return;
+    }
+
+    setQuickStatus("posting");
+    setQuickMsg("");
+
+    try {
+      // Try to resolve Eric's user ID if we don't have it yet
+      let mention = `@${ERIC_DISPLAY}`;
+      if (!ericUserId) {
+        try {
+          const usersRes = await fetch("/api/users", { headers: { Authorization: `Bearer ${token.trim()}` } });
+          const usersData = await usersRes.json();
+          if (usersData.ok) {
+            const eric = usersData.members?.find(
+              (u) => u.real_name === ERIC_DISPLAY || u.profile?.real_name === ERIC_DISPLAY
+            );
+            if (eric) {
+              setEricUserId(eric.id);
+              mention = `<@${eric.id}>`;
+            }
+          }
+        } catch {}
+      } else {
+        mention = `<@${ericUserId}>`;
+      }
+
+      const res = await fetch("/api/reply", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: parsed.channel,
+          thread_ts: parsed.thread_ts,
+          text: `${mention} ${quickCardUrl.trim()}`,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Slack API error");
+
+      setQuickStatus("success");
+      setQuickMsg("Posted!");
+      setQuickThreadUrl("");
+      setQuickCardUrl("");
+    } catch (err) {
+      setQuickStatus("error");
+      setQuickMsg(err.message);
+    }
+  }, [token, quickThreadUrl, quickCardUrl, ericUserId]);
 
   const filledCount = leads.filter((l) => urlMap[l.id]).length;
 
@@ -435,6 +511,40 @@ export default function Post() {
           </button>
         </div>
       </div>
+
+      <div className="token-section">
+        <div className="token-label">Quick Post (single thread)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            className="token-input"
+            type="text"
+            placeholder="Slack thread URL (right-click message → Copy link)"
+            value={quickThreadUrl}
+            onChange={(e) => { setQuickThreadUrl(e.target.value); setQuickStatus("idle"); }}
+          />
+          <div className="token-row">
+            <input
+              className="token-input"
+              type="text"
+              placeholder="Battle card URL"
+              value={quickCardUrl}
+              onChange={(e) => { setQuickCardUrl(e.target.value); setQuickStatus("idle"); }}
+              onKeyDown={(e) => e.key === "Enter" && quickPost()}
+            />
+            <button
+              className="btn"
+              onClick={quickPost}
+              disabled={!token.trim() || !quickThreadUrl.trim() || !quickCardUrl.trim() || quickStatus === "posting"}
+            >
+              {quickStatus === "posting" ? "Posting..." : "Post"}
+            </button>
+          </div>
+        </div>
+        {quickStatus === "error" && <div className="status-text error" style={{ marginTop: 8 }}>{quickMsg}</div>}
+        {quickStatus === "success" && <div className="status-text success" style={{ marginTop: 8 }}>{quickMsg}</div>}
+      </div>
+
+      <div className="divider" />
 
       <div className="status-bar">
         {status === "loading" && <span className="status-text loading">Fetching from Slack...</span>}
