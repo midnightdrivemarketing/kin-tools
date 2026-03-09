@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, useLocation } from "react-router-dom";
 import "./global.css";
 import Home from "./pages/Home";
 import Queue from "./pages/Queue";
+import Post from "./pages/Post";
 
 const NAV_STYLES = `
   .layout {
@@ -90,12 +91,16 @@ export default function App() {
             <NavLink to="/queue" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
               Queue
             </NavLink>
+            <NavLink to="/post" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+              Post
+            </NavLink>
           </div>
         </nav>
         <main className="page-content">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/queue" element={<Queue />} />
+            <Route path="/post" element={<Post />} />
           </Routes>
         </main>
       </div>

@@ -97,6 +97,11 @@ const TOOLS = [
     name: "Battle Card Queue",
     desc: "Pull undelivered battle card requests from Slack and copy them for Cowork.",
   },
+  {
+    path: "/post",
+    name: "Post Battle Cards",
+    desc: "Reply to pending Slack requests with final battle card URLs, @mentioning Eric.",
+  },
 ];
 
 export default function Home() {
